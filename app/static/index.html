@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>无水印图 · 视频提取</title>
+<style>
+  :root {
+    --accent: #ff2442;
+    --accent-soft: #fff0f3;
+    --bg: #f7f8fa;
+    --card: #ffffff;
+    --text: #1f2329;
+    --muted: #8a919f;
+    --border: #e8eaed;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC",
+      "Microsoft YaHei", "Segoe UI", sans-serif;
+    background: var(--bg); color: var(--text);
+    min-height: 100vh;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 40px 20px 60px; }
+  header { text-align: center; margin-bottom: 28px; }
+  header h1 { font-size: 26px; font-weight: 700; }
+  header h1 .dot { color: var(--accent); }
+  header p { color: var(--muted); font-size: 14px; margin-top: 8px; }
+
+  .input-row { display: flex; gap: 10px; }
+  .input-row input {
+    flex: 1; padding: 14px 16px; font-size: 15px;
+    border: 1.5px solid var(--border); border-radius: var(--radius);
+    outline: none; background: var(--card); transition: border-color .15s;
+  }
+  .input-row input:focus { border-color: var(--accent); }
+  .input-row button {
+    padding: 0 26px; font-size: 15px; font-weight: 600; color: #fff;
+    background: var(--accent); border: none; border-radius: var(--radius);
+    cursor: pointer; transition: opacity .15s;
+  }
+  .input-row button:hover { opacity: .9; }
+  .input-row button:disabled { opacity: .5; cursor: not-allowed; }
+  .tips { color: var(--muted); font-size: 12.5px; margin-top: 10px; line-height: 1.7; }
+
+  .loading { display: none; text-align: center; padding: 48px 0; color: var(--muted); }
+  .loading .spin {
+    width: 34px; height: 34px; margin: 0 auto 14px;
+    border: 3px solid var(--accent-soft); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .error {
+    display: none; margin-top: 20px; padding: 14px 16px;
+    background: #fff5f5; border: 1px solid #ffd6d6; color: #d4380d;
+    border-radius: 10px; font-size: 14px; line-height: 1.7;
+  }
+
+  .result { display: none; margin-top: 26px; }
+  .meta-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 18px 20px; margin-bottom: 18px;
+  }
+  .meta-card h2 { font-size: 17px; line-height: 1.5; }
+  .meta-card .author { color: var(--muted); font-size: 13px; margin-top: 8px; }
+  .meta-card .desc {
+    color: var(--text); font-size: 14px; margin-top: 10px; line-height: 1.7;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .toolbar { margin: 14px 0 4px; display: flex; gap: 10px; }
+  .toolbar button {
+    padding: 7px 16px; font-size: 13px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--accent); color: var(--accent);
+    background: var(--accent-soft); transition: background .15s;
+  }
+  .toolbar button:hover { background: #ffe3e9; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin-top: 14px; }
+  .grid figure {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden;
+  }
+  .grid img { width: 100%; aspect-ratio: 3/4; object-fit: cover; display: block; background: #eee; }
+  .grid figcaption { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; }
+  .grid figcaption span { font-size: 12px; color: var(--muted); }
+  .grid figcaption a {
+    font-size: 13px; color: var(--accent); text-decoration: none; font-weight: 600;
+  }
+  .grid figcaption a:hover { text-decoration: underline; }
+
+  .video-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden; margin-top: 14px;
+  }
+  .video-card video { width: 100%; display: block; max-height: 480px; background: #000; }
+  .video-card .vbar { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; }
+  .video-card .vbar span { font-size: 12px; color: var(--muted); }
+  .video-card .vbar a { font-size: 13px; color: var(--accent); text-decoration: none; font-weight: 600; }
+
+  footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 40px; line-height: 1.8; }
+  @media (max-width: 560px) {
+    .input-row { flex-direction: column; }
+    .input-row button { padding: 13px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>无水印图 · 视频提取<span class="dot">。</span></h1>
+    <p>粘贴小红书 / 知乎链接，一键提取无水印原图 / 原视频</p>
+  </header>
+
+  <div class="input-row">
+    <input id="url" type="text" placeholder="粘贴分享链接，例如 http://xhslink.com/xxxx 或 https://zhuanlan.zhihu.com/p/xxxx" autocomplete="off" />
+    <button id="go" onclick="doParse()">提取</button>
+  </div>
+  <p class="tips">支持小红书（xhslink.com / xiaohongshu.com）与知乎（zhuanlan.zhihu.com 文章、zhihu.com 回答），返回无水印原图 / 原视频直链。知乎匿名访问有反爬限制，服务端配置 ZHIHU_COOKIE 后成功率更高。</p>
+
+  <div class="loading" id="loading"><div class="spin"></div>正在解析，请稍候…</div>
+  <div class="error" id="error"></div>
+
+  <div class="result" id="result">
+    <div class="meta-card">
+      <h2 id="rTitle"></h2>
+      <div class="author" id="rAuthor"></div>
+      <div class="desc" id="rDesc"></div>
+      <div class="toolbar">
+        <button onclick="copyAll()">复制全部直链</button>
+      </div>
+    </div>
+    <div class="grid" id="grid"></div>
+    <div class="video-card" id="videoCard" style="display:none">
+      <video id="rVideo" controls playsinline></video>
+      <div class="vbar"><span id="rVideoInfo"></span><a id="rVideoLink" href="#" target="_blank">下载无水印视频</a></div>
+    </div>
+  </div>
+
+  <footer>仅供个人学习研究使用，请尊重原作者版权，勿用于商业用途。</footer>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let lastLinks = [];
+
+function showError(msg) {
+  $("error").style.display = "block";
+  $("error").textContent = msg;
+  $("result").style.display = "none";
+}
+function clearError() { $("error").style.display = "none"; }
+
+async function doParse() {
+  const url = $("url").value.trim();
+  if (!url) { showError("请先粘贴分享链接"); return; }
+  $("go").disabled = true;
+  $("loading").style.display = "block";
+  clearError();
+  $("result").style.display = "none";
+  try {
+    const resp = await fetch("/api/parse", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.detail || ("请求失败 HTTP " + resp.status));
+    render(data);
+  } catch (e) {
+    showError(e.message || String(e));
+  } finally {
+    $("go").disabled = false;
+    $("loading").style.display = "none";
+  }
+}
+
+function render(d) {
+  $("rTitle").textContent = d.title || "(无标题)";
+  $("rAuthor").textContent = d.author ? ("作者：" + d.author) : "";
+  $("rDesc").textContent = d.description || "";
+  $("rDesc").style.display = d.description ? "" : "none";
+
+  const grid = $("grid");
+  grid.innerHTML = "";
+  lastLinks = [];
+  (d.images || []).forEach((img, i) => {
+    lastLinks.push(img.url);
+    const fig = document.createElement("figure");
+    const im = document.createElement("img");
+    im.src = img.url;
+    im.loading = "lazy";
+    im.onerror = () => { im.style.opacity = .4; };
+    const cap = document.createElement("figcaption");
+    const no = document.createElement("span");
+    no.textContent = (img.width && img.height) ? (img.width + "×" + img.height) : ("图 " + (i + 1));
+    const a = document.createElement("a");
+    a.href = img.url; a.target = "_blank"; a.textContent = "保存原图";
+    cap.append(no, a);
+    fig.append(im, cap);
+    grid.append(fig);
+  });
+  grid.style.display = (d.images && d.images.length) ? "" : "none";
+
+  const vc = $("videoCard");
+  if (d.videos && d.videos.length) {
+    const v = d.videos[0];
+    $("rVideo").src = v.url;
+    if (v.cover) $("rVideo").poster = v.cover;
+    $("rVideoInfo").textContent = v.duration ? ("无水印视频 · " + v.duration + " 秒") : "无水印视频";
+    $("rVideoLink").href = v.url;
+    vc.style.display = "";
+    lastLinks.push(v.url);
+  } else {
+    vc.style.display = "none";
+  }
+  $("result").style.display = "block";
+}
+
+async function copyAll() {
+  try {
+    await navigator.clipboard.writeText(lastLinks.join("\n"));
+    alert("已复制 " + lastLinks.length + " 条直链");
+  } catch (e) {
+    prompt("复制失败，请手动全选复制：", lastLinks.join("\n"));
+  }
+}
+
+$("url").addEventListener("keydown", (e) => { if (e.key === "Enter") doParse(); });
+</script>
+</body>
+</html>
